@@ -58,25 +58,48 @@ elif opcion == "2. Añadir Stock":
 
 # PASO 3: TOMAR MATERIAL
 elif opcion == "3. Tomar Material":
-    st.header("✂️ Registro de Corte")
+    st.header("✂️ Registro de Corte para Producción")
     st.warning("Reglas: No cortes ≥ 12m. Sobrantes < 1.50m se descartan.")
+    
     with st.form("corte_form"):
+        # --- NUEVO CAMPO: CLIENTE ---
+        cliente = st.text_input("Nombre del Cliente / Orden #", placeholder="Ej: Juan Pérez o Pedido 104")
+        
         tipo = st.selectbox("Chapa", list(st.session_state.inventory.keys()))
         largo = st.number_input("Largo (m)", min_value=0.5, max_value=11.9, step=0.1)
         cant = st.number_input("Cantidad de piezas", min_value=1, step=1)
-        if st.form_submit_button("Procesar"):
-            exito, registros = st.session_state.inventory[tipo].take_material(largo, cant)
-            if exito:
-                for r in registros:
-                    msg = f"Pieza sacada de: **{r['source']}**."
-                    if r['remnant'] < 1.5 and r['remnant'] > 0:
-                        msg += f" (Sobrante de {r['remnant']}m descartado)"
-                    st.info(msg)
-                st.session_state.history.extend(registros)
-                st.success("¡Pedido registrado!")
+        
+        if st.form_submit_button("Procesar y Generar Orden"):
+            if not cliente:
+                st.error("Por favor, ingresa el nombre del cliente para continuar.")
             else:
-                st.error("Stock insuficiente.")
-
+                exito, registros = st.session_state.inventory[tipo].take_material(largo, cant)
+                if exito:
+                    # Agregamos el cliente a cada registro de esta tanda
+                    for r in registros:
+                        r['cliente'] = cliente
+                    
+                    st.session_state.history.extend(registros)
+                    
+                    # --- RESUMEN PARA PRODUCCIÓN ---
+                    st.success(f"✅ Pedido registrado para {cliente}")
+                    st.markdown("### 📝 Hoja de Corte (Producción)")
+                    
+                    # Creamos un texto limpio para que puedas copiarlo rápido
+                    resumen_texto = f"CLIENTE: {cliente}\nPRODUCTO: {tipo}\n"
+                    for i, r in enumerate(registros):
+                        info_linea = f"- Pieza {i+1}: {largo}m (Extraer de: {r['source']})"
+                        st.info(info_linea)
+                        resumen_texto += info_linea + "\n"
+                    
+                    # Botón opcional para copiar el resumen (en versiones nuevas de Streamlit)
+                    st.code(resumen_texto, language="text")
+                    
+                    # Guardamos automáticamente en Sheets para no perder datos
+                    # (Si tienes la función guardar_a_sheets configurada)
+                    # guardar_a_sheets() 
+                else:
+                    st.error("Stock insuficiente.")
 # PASO 4: DESHACER
 elif opcion == "4. Deshacer Pedido":
     st.header("↩️ Deshacer Último Movimiento")
@@ -92,13 +115,20 @@ elif opcion == "4. Deshacer Pedido":
 
 # PASO 5: HISTORIAL
 elif opcion == "5. Historial y Reporte":
-    st.header("📜 Historial")
+    st.header("📜 Historial de Pedidos")
     if st.session_state.history:
         df = pd.DataFrame(st.session_state.history)
-        st.table(df)
+        
+        # Reordenamos las columnas para que el Cliente sea lo primero que se vea
+        columnas = ['timestamp', 'cliente', 'sheet_type', 'length_requested', 'source', 'remnant']
+        # Usamos solo las columnas que existan para evitar errores
+        df = df[[c for c in columnas if c in df.columns]]
+        
+        st.dataframe(df, use_container_width=True)
+        
+        # Botón de descarga con nombre de cliente si se filtra
         csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button("Descargar CSV", csv, "historial.csv", "text/csv")
-
+        st.download_button("📥 Descargar Reporte de Producción (CSV)", csv, "produccion_chapas.csv", "text/csv")
 
 # PASO 6: SINCRONIZACIÓN MANUAL
 elif opcion == "6. Sincronizar Google Sheets":
