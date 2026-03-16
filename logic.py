@@ -17,53 +17,36 @@ class SheetInventory:
     def take_material(self, length_needed, num_cuts=1):
         if length_needed >= 12.0:
             return False, [{"error": "Corte bloqueado: El largo debe ser menor a 12m."}]
-
         successful_cuts = 0
         current_records = []
-        
         for i in range(num_cuts):
-            record = {
-                'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                'sheet_type': self.sheet_name,
-                'length_requested': length_needed,
-                'source': '',
-                'remnant': 0,
-                'success': False
-            }
-
+            record = {'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 'sheet_type': self.sheet_name, 'length_requested': length_needed, 'source': '', 'remnant': 0, 'success': False}
             suitable_cuts = [c for c in self.cuts if c >= length_needed]
             if suitable_cuts:
                 selected_cut = min(suitable_cuts)
                 self.cuts.remove(selected_cut)
                 remnant = round(selected_cut - length_needed, 2)
-                if remnant >= self.min_cut_length_to_save:
-                    self.cuts.append(remnant)
+                if remnant >= self.min_cut_length_to_save: self.cuts.append(remnant)
                 record.update({'source': 'Recorte', 'remnant': remnant, 'success': True})
                 successful_cuts += 1
-            
             elif self.full_sheets_count > 0:
                 self.full_sheets_count -= 1
                 remnant = round(self.full_sheet_length - length_needed, 2)
-                if remnant >= self.min_cut_length_to_save:
-                    self.cuts.append(remnant)
+                if remnant >= self.min_cut_length_to_save: self.cuts.append(remnant)
                 record.update({'source': 'Chapa Completa', 'remnant': remnant, 'success': True})
                 successful_cuts += 1
-            else:
-                break 
+            else: break 
             current_records.append(record)
-
         return (successful_cuts == num_cuts), current_records
 
+    # ESTA ES LA FUNCIÓN QUE ESTÁ DANDO EL ERROR SI NO ESTÁ:
     def undo_cut(self, source, length_requested, remnant):
         if remnant >= self.min_cut_length_to_save:
             if remnant in self.cuts:
                 self.cuts.remove(remnant)
-        
         if source == 'Recorte':
             original_cut = round(length_requested + remnant, 2)
             self.cuts.append(original_cut)
         elif source == 'Chapa Completa':
             self.full_sheets_count += 1
         return True
-
-        return (successful_cuts == num_cuts), current_records
