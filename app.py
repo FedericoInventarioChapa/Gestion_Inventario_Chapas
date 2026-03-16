@@ -82,30 +82,34 @@ if opcion == "1. Mostrar Inventario":
 # PASO 3: TOMAR MATERIAL (Actualizado para mostrar el origen)
 elif opcion == "3. Tomar Material (Pedido)":
     st.header("✂️ Registrar Nuevo Corte")
+    
+    # Cartel de advertencia visual
+    st.warning("⚠️ Recordatorio: No se procesan cortes ≥ 12m. Sobrantes < 1.50m se consideran desperdicio.")
+
     with st.form("form_corte"):
-        tipo = st.selectbox("Seleccione tipo de Chapa", list(st.session_state.inventory.keys()))
-        largo = st.number_input("Largo necesario (m)", min_value=0.5, step=0.1)
-        cant = st.number_input("Cantidad de piezas iguales", min_value=1, step=1)
+        tipo = st.selectbox("Seleccione Chapa", list(st.session_state.inventory.keys()))
         
-        if st.form_submit_button("Procesar y Ver Origen"):
+        # Limitamos el número máximo que se puede ingresar en la interfaz
+        largo = st.number_input("Largo necesario (m)", min_value=0.5, max_value=11.99, step=0.1)
+        cant = st.number_input("Cantidad", min_value=1, step=1)
+        
+        if st.form_submit_button("Procesar"):
             exito, registros = st.session_state.inventory[tipo].take_material(largo, cant)
             
             if exito:
-                st.success(f"✅ Pedido completado para {tipo}")
+                for r in registros:
+                    st.info(f"Pieza de {largo}m obtenida de: **{r['source']}**")
+                    if r['remnant'] < 1.50 and r['remnant'] > 0:
+                        st.write(f"Nota: Sobró {r['remnant']}m (Descartado por ser menor a 1.50m)")
                 
-                # --- AQUÍ MOSTRARÁ DE DÓNDE SALIÓ CADA COSA ---
-                for i, r in enumerate(registros):
-                    # Usamos un 'info' o 'warning' para que resalte visualmente
-                    color = "blue" if r['source'] == "Recorte" else "orange"
-                    st.markdown(f"**Pieza {i+1}:** Sacada de **{r['source']}**")
-                    if r['remnant'] > 0:
-                        st.caption(f"   ↳ Sobrante generado: {r['remnant']}m (vuelve al stock)")
-                
-                # Guardar historial y actualizar nube
                 st.session_state.history.extend(registros)
                 guardar_a_sheets()
             else:
-                st.error("❌ No hay material suficiente en stock (ni recortes ni chapas enteras).")
+                # Si el error vino por el límite de 12m
+                if "error" in registros[0]:
+                    st.error(registros[0]["error"])
+                else:
+                    st.error("No hay stock suficiente.")
 
 # PASO 4: SINCRONIZAR
 elif opcion == "4. Sincronizar (Sheets)":
