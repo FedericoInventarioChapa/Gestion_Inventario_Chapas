@@ -98,8 +98,7 @@ elif opcion == "5. Historial y Reporte":
         st.table(df)
         csv = df.to_csv(index=False).encode('utf-8')
         st.download_button("Descargar CSV", csv, "historial.csv", "text/csv")
-# --- AGREGAR AL MENÚ LATERAL ---
-# (Asegurate de que "6. Sincronizar Google Sheets" esté en la lista del radio/selectbox)
+
 
 # PASO 6: SINCRONIZACIÓN MANUAL
 elif opcion == "6. Sincronizar Google Sheets":
