@@ -1,6 +1,26 @@
 import datetime
 
 class SheetInventory:
+    def undo_cut(self, source, length_requested, remnant):
+        """Devuelve el material al inventario según de dónde se sacó."""
+        # Si salió de un recorte, el recorte original era (pedido + lo que sobró)
+        if source == 'Recorte':
+            # Primero quitamos el sobrante que se había guardado (si es que se guardó)
+            if remnant >= self.min_cut_length_to_save:
+                if remnant in self.cuts:
+                    self.cuts.remove(remnant)
+            # Devolvemos el recorte original a la lista
+            original_cut = round(length_requested + remnant, 2)
+            self.cuts.append(original_cut)
+            
+        # Si salió de una chapa completa, simplemente la sumamos de nuevo
+        elif source == 'Chapa Completa':
+            # Quitamos el sobrante que generó de la lista de recortes
+            if remnant >= self.min_cut_length_to_save:
+                if remnant in self.cuts:
+                    self.cuts.remove(remnant)
+            self.full_sheets_count += 1
+        return True
     def __init__(self, sheet_name, full_sheet_length=13.0):
         self.sheet_name = sheet_name
         self.full_sheet_length = full_sheet_length
