@@ -28,13 +28,13 @@ if 'history' not in st.session_state:
     st.session_state.history = []
 
 # --- MENÚ LATERAL ---
-st.sidebar.title("Menú de Gestión")
 opcion = st.sidebar.radio("Operaciones:", [
     "1. Mostrar Inventario", 
     "2. Añadir Stock", 
     "3. Tomar Material",
     "4. Deshacer Pedido",
-    "5. Historial y Reporte"
+    "5. Historial y Reporte",
+    "6. Sincronizar Google Sheets" # <-- Agregamos esta línea
 ])
 
 # PASO 1: INVENTARIO
