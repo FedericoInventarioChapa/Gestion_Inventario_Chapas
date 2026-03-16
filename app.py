@@ -79,21 +79,33 @@ if opcion == "1. Mostrar Inventario":
             st.write("**Recortes:**")
             st.write(obj.cuts if obj.cuts else "Vacio")
 
-# PASO 3: TOMAR MATERIAL
+# PASO 3: TOMAR MATERIAL (Actualizado para mostrar el origen)
 elif opcion == "3. Tomar Material (Pedido)":
     st.header("✂️ Registrar Nuevo Corte")
     with st.form("form_corte"):
-        tipo = st.selectbox("Chapa", list(st.session_state.inventory.keys()))
-        largo = st.number_input("Largo (m)", min_value=0.5)
-        cant = st.number_input("Cantidad", min_value=1, step=1)
-        if st.form_submit_button("Procesar Corte"):
+        tipo = st.selectbox("Seleccione tipo de Chapa", list(st.session_state.inventory.keys()))
+        largo = st.number_input("Largo necesario (m)", min_value=0.5, step=0.1)
+        cant = st.number_input("Cantidad de piezas iguales", min_value=1, step=1)
+        
+        if st.form_submit_button("Procesar y Ver Origen"):
             exito, registros = st.session_state.inventory[tipo].take_material(largo, cant)
+            
             if exito:
+                st.success(f"✅ Pedido completado para {tipo}")
+                
+                # --- AQUÍ MOSTRARÁ DE DÓNDE SALIÓ CADA COSA ---
+                for i, r in enumerate(registros):
+                    # Usamos un 'info' o 'warning' para que resalte visualmente
+                    color = "blue" if r['source'] == "Recorte" else "orange"
+                    st.markdown(f"**Pieza {i+1}:** Sacada de **{r['source']}**")
+                    if r['remnant'] > 0:
+                        st.caption(f"   ↳ Sobrante generado: {r['remnant']}m (vuelve al stock)")
+                
+                # Guardar historial y actualizar nube
                 st.session_state.history.extend(registros)
-                st.success("Corte realizado.")
-                guardar_a_sheets() # Automatización total
+                guardar_a_sheets()
             else:
-                st.error("No hay material suficiente.")
+                st.error("❌ No hay material suficiente en stock (ni recortes ni chapas enteras).")
 
 # PASO 4: SINCRONIZAR
 elif opcion == "4. Sincronizar (Sheets)":
