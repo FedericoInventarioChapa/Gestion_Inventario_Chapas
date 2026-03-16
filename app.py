@@ -103,4 +103,34 @@ elif opcion == "4. Sincronizar (Sheets)":
     if st.button("Guardar datos ahora"):
         guardar_a_sheets()
 
-# ... (puedes seguir agregando los demás pasos aquí)
+
+# PASO 5: HISTORIAL DE CORTES
+elif opcion == "5. Historial de Cortes":
+    st.header("📜 Historial de Operaciones")
+    if st.session_state.history:
+        # Convertimos la lista de historial en una tabla (DataFrame)
+        df = pd.DataFrame(st.session_state.history)
+        
+        # Renombramos columnas para que se vean bien en la App
+        df.columns = ["Fecha/Hora", "Tipo de Chapa", "Largo Pedido", "Resultado", "Origen", "Sobrante"]
+        
+        # Mostramos la tabla
+        st.dataframe(df, use_container_width=True)
+    else:
+        st.info("Aún no se han realizado cortes en esta sesión.")
+
+# PASO 6: DESCARGAR REPORTE
+elif opcion == "6. Descargar Reporte":
+    st.header("📥 Descargar Datos")
+    if st.session_state.history:
+        df = pd.DataFrame(st.session_state.history)
+        csv = df.to_csv(index=False).encode('utf-8')
+        
+        st.download_button(
+            label="Descargar Historial como CSV",
+            data=csv,
+            file_name=f"historial_cortes_{pd.Timestamp.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+        )
+    else:
+        st.warning("No hay datos en el historial para descargar.")
