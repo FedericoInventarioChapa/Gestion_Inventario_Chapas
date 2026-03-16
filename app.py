@@ -20,7 +20,8 @@ def conectar_google_sheets():
         st.error(f"Error de conexión: {e}")
         return None
 
-# --- INICIALIZACIÓN DEL INVENTARIO (Session State) ---
+# --- INICIALIZACIÓN DEL ESTADO (Session State) ---
+# Esto asegura que las variables no se borren al tocar botones
 if 'inventory' not in st.session_state:
     st.session_state.inventory = {
         "T101 galvanizada": SheetInventory("T101 galvanizada"),
@@ -28,7 +29,9 @@ if 'inventory' not in st.session_state:
         "Acanalada galvanizada": SheetInventory("Acanalada galvanizada"),
         "Acanalada zincalum": SheetInventory("Acanalada zincalum")
     }
-    st.session_state.history = []
+
+if 'history' not in st.session_state:
+    st.session_state.history = []  # <-- ESTA ES LA LÍNEA QUE FALTA O FALLA
 
 # --- FUNCIONES DE PERSISTENCIA ---
 def cargar_de_sheets():
