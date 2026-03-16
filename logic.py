@@ -17,19 +17,29 @@ class SheetInventory:
         return "La cantidad debe ser positiva."
 
     def take_material(self, length_needed, num_cuts=1):
-        """
-        Lógica unificada para tomar material. 
-        Retorna (bool_éxito, mensaje_detalle, lista_de_registros)
-        """
+        # --- REGLA 1: No permitir cortes de 12 metros o más ---
+        if length_needed >= 12.0:
+            return False, [{"error": "No se permiten cortes de 12m o superiores por seguridad/logística."}]
+
         successful_cuts = 0
         current_records = []
         
         for i in range(num_cuts):
-            record = {
-                'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                'sheet_type': self.sheet_name,
-                'length_requested': length_needed,
-                'success': False
+            # ... (tu lógica de búsqueda de recortes y chapas) ...
+
+            # --- REGLA 2: No dejar recortes menores a 1.50m ---
+            # Esta parte ya la teníamos perfilada, pero aseguramos el valor:
+            self.min_cut_length_to_save = 1.50 
+            
+            # Al calcular el remanente:
+            remnant = round(selected_cut_or_full - length_needed, 2)
+            
+            if remnant >= self.min_cut_length_to_save:
+                self.cuts.append(remnant)
+            else:
+                # Si sobra menos de 1.50m, ese sobrante se descarta (no vuelve al stock)
+                # Opcional: podrías sumar este desperdicio a una variable "scrap"
+                pass
             }
 
             # 1. Intentar con recortes
