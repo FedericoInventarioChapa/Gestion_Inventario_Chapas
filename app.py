@@ -1,75 +1,103 @@
-import json # Agregamos esto arriba de todo
-
-def conectar_google_sheets():
-    # Leemos el JSON como un texto largo y lo convertimos a diccionario
-    info_json = st.secrets["gcp_service_account"]["json_data"]
-    credentials = json.loads(info_json)
-    
-    gc = gspread.service_account_from_dict(credentials)
-    # Asegúrate de que el nombre coincida con tu archivo de Google Sheets
-    return gc.open('Inventario Chapas').sheet1
 import streamlit as st
 import gspread
 import pandas as pd
-from logic import SheetInventory # Importamos tu "cerebro"
+import json
+from logic import SheetInventory
 
-# --- CONFIGURACIÓN DE CONEXIÓN SEGURA ---
+# --- CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(page_title="Inventario de Chapas", layout="wide")
+
+# --- CONEXIÓN A GOOGLE SHEETS ---
 def conectar_google_sheets():
-    # Streamlit leerá los datos del JSON desde una "caja fuerte" llamada secrets
-    credentials = st.secrets["gcp_service_account"]
-    gc = gspread.service_account_from_dict(credentials)
-    # Cambia 'Inventario Chapas' por el nombre exacto de tu Google Sheet si es diferente
-    return gc.open('Inventario Chapas').sheet1
+    try:
+        # Usamos el formato de json_data que configuramos en los Secrets
+        info_json = st.secrets["gcp_service_account"]["json_data"]
+        credentials = json.loads(info_json)
+        gc = gspread.service_account_from_dict(credentials)
+        # Asegúrate de que el nombre coincida con tu archivo
+        return gc.open('Inventario Chapas').sheet1
+    except Exception as e:
+        st.error(f"Error de conexión: {e}")
+        return None
 
-# --- INICIALIZACIÓN DEL ESTADO ---
+# --- INICIALIZACIÓN DEL INVENTARIO (Session State) ---
 if 'inventory' not in st.session_state:
-    # Creamos el inventario vacío
     st.session_state.inventory = {
         "T101 galvanizada": SheetInventory("T101 galvanizada"),
         "T101 zincalum": SheetInventory("T101 zincalum"),
         "Acanalada galvanizada": SheetInventory("Acanalada galvanizada"),
         "Acanalada zincalum": SheetInventory("Acanalada zincalum")
     }
-    # Intentamos cargar datos desde Sheets al arrancar
-    try:
-        wks = conectar_google_sheets()
+    st.session_state.history = []
+
+# --- FUNCIONES DE PERSISTENCIA ---
+def cargar_de_sheets():
+    wks = conectar_google_sheets()
+    if wks:
         data = wks.get_all_records()
         for row in data:
-            nombre = row['TIPO_CHAPA']
+            nombre = row.get('TIPO_CHAPA')
             if nombre in st.session_state.inventory:
                 obj = st.session_state.inventory[nombre]
-                obj.full_sheets_count = int(row['CHAPAS_COMPLETAS'])
-                cuts_str = str(row['RECORTES'])
+                obj.full_sheets_count = int(row.get('CHAPAS_COMPLETAS', 0))
+                cuts_str = str(row.get('RECORTES', ""))
                 obj.cuts = [float(x) for x in cuts_str.split(',') if x.strip()]
-    except Exception as e:
-        st.error(f"Error al conectar con Google Sheets: {e}")
+        st.success("✅ Datos cargados desde Google Sheets")
 
-# --- INTERFAZ (FRONTEND) ---
-st.title("📦 Sistema de Inventario de Chapas")
+def guardar_a_sheets():
+    wks = conectar_google_sheets()
+    if wks:
+        rows = [["TIPO_CHAPA", "CHAPAS_COMPLETAS", "RECORTES"]]
+        for name, obj in st.session_state.inventory.items():
+            cuts_str = ",".join(map(str, obj.cuts))
+            rows.append([name, obj.full_sheets_count, cuts_str])
+        wks.update('A1', rows)
+        st.success("💾 Inventario guardado en la nube")
 
-menu = ["Inventario Actual", "Añadir Stock", "Registrar Corte", "Historial"]
-choice = st.sidebar.selectbox("Menú Principal", menu)
+# --- INTERFAZ ---
+st.sidebar.header("Menú de Gestión")
+opcion = st.sidebar.selectbox("Seleccione una operación", [
+    "1. Mostrar Inventario", 
+    "2. Añadir Stock", 
+    "3. Tomar Material (Pedido)",
+    "4. Sincronizar (Sheets)",
+    "5. Historial de Cortes",
+    "6. Descargar Reporte"
+])
 
-if choice == "Inventario Actual":
-    st.header("Stock en Depósito")
-    for name, obj in st.session_state.inventory.items():
-        with st.expander(f"Chapa: {name}"):
-            col1, col2 = st.columns(2)
-            col1.metric("Chapas Completas", f"{obj.full_sheets_count} un.")
-            col2.write("**Recortes disponibles:**")
-            col2.write(obj.cuts if obj.cuts else "No hay recortes.")
+# PASO 1: MOSTRAR INVENTARIO
+if opcion == "1. Mostrar Inventario":
+    st.header("📋 Stock Actual")
+    cols = st.columns(len(st.session_state.inventory))
+    for i, (name, obj) in enumerate(st.session_state.inventory.items()):
+        with cols[i]:
+            st.subheader(name)
+            st.metric("Completas", f"{obj.full_sheets_count} un.")
+            st.write("**Recortes:**")
+            st.write(obj.cuts if obj.cuts else "Vacio")
 
-elif choice == "Registrar Corte":
-    st.header("Nuevo Pedido de Corte")
+# PASO 3: TOMAR MATERIAL
+elif opcion == "3. Tomar Material (Pedido)":
+    st.header("✂️ Registrar Nuevo Corte")
     with st.form("form_corte"):
-        tipo = st.selectbox("Seleccione Chapa", list(st.session_state.inventory.keys()))
-        largo = st.number_input("Largo necesario (metros)", min_value=0.5, step=0.1)
-        cantidad = st.number_input("Cantidad de cortes", min_value=1, step=1)
-        
-        if st.form_submit_button("Procesar y Guardar"):
-            exito, registros = st.session_state.inventory[tipo].take_material(largo, cantidad)
+        tipo = st.selectbox("Chapa", list(st.session_state.inventory.keys()))
+        largo = st.number_input("Largo (m)", min_value=0.5)
+        cant = st.number_input("Cantidad", min_value=1, step=1)
+        if st.form_submit_button("Procesar Corte"):
+            exito, registros = st.session_state.inventory[tipo].take_material(largo, cant)
             if exito:
-                st.success("¡Corte registrado con éxito!")
-                # Aquí llamaríamos a una función para guardar en Sheets (la haremos en el siguiente paso)
+                st.session_state.history.extend(registros)
+                st.success("Corte realizado.")
+                guardar_a_sheets() # Automatización total
             else:
-                st.error("Material insuficiente para completar el pedido.")
+                st.error("No hay material suficiente.")
+
+# PASO 4: SINCRONIZAR
+elif opcion == "4. Sincronizar (Sheets)":
+    st.header("🔄 Sincronización con Google")
+    if st.button("Cargar datos ahora"):
+        cargar_de_sheets()
+    if st.button("Guardar datos ahora"):
+        guardar_a_sheets()
+
+# ... (puedes seguir agregando los demás pasos aquí)
