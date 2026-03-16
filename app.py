@@ -15,7 +15,35 @@ def conectar_google_sheets():
         return gc.open('Inventario Chapas').sheet1
     except:
         return None
+# --- NUEVA FUNCIÓN PARA EL HISTORIAL ETERNO ---
+def registrar_en_historial_sheets(registros):
+    try:
+        # Abrimos la planilla y buscamos la pestaña "Historial"
+        doc = conectar_google_sheets().spreadsheet 
+        try:
+            wks_historial = doc.worksheet('Historial')
+        except:
+            # Si no existe la pestaña, la creamos con encabezados
+            wks_historial = doc.add_worksheet(title="Historial", rows="1000", cols="10")
+            wks_historial.append_row(["Fecha", "Cliente", "Chapa", "Largo", "Origen", "Sobrante"])
 
+        # Preparamos los datos para subir
+        filas_nuevas = []
+        for r in registros:
+            filas_nuevas.append([
+                r['timestamp'], 
+                r.get('cliente', 'S/N'), 
+                r['sheet_type'], 
+                r['length_requested'], 
+                r['source'], 
+                r['remnant']
+            ])
+        
+        # Subimos todas las filas juntas
+        wks_historial.append_rows(filas_nuevas)
+    except Exception as e:
+        st.error(f"Error al guardar historial en la nube: {e}")
+        
 # Inicialización
 if 'inventory' not in st.session_state:
     st.session_state.inventory = {
