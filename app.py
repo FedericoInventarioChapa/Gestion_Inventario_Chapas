@@ -98,3 +98,43 @@ elif opcion == "5. Historial y Reporte":
         st.table(df)
         csv = df.to_csv(index=False).encode('utf-8')
         st.download_button("Descargar CSV", csv, "historial.csv", "text/csv")
+# --- AGREGAR AL MENÚ LATERAL ---
+# (Asegurate de que "6. Sincronizar Google Sheets" esté en la lista del radio/selectbox)
+
+# PASO 6: SINCRONIZACIÓN MANUAL
+elif opcion == "6. Sincronizar Google Sheets":
+    st.header("🔄 Sincronización de Datos")
+    st.info("Desde aquí puedes forzar la carga de datos desde la planilla o guardar el estado actual.")
+    
+    col_sync1, col_sync2 = st.columns(2)
+    
+    with col_sync1:
+        if st.button("📥 Cargar desde Sheets", help="Trae el stock actual de la planilla de Google"):
+            wks = conectar_google_sheets()
+            if wks:
+                data = wks.get_all_records()
+                for row in data:
+                    nombre = row.get('TIPO_CHAPA')
+                    if nombre in st.session_state.inventory:
+                        obj = st.session_state.inventory[nombre]
+                        obj.full_sheets_count = int(row.get('CHAPAS_COMPLETAS', 0))
+                        cuts_str = str(row.get('RECORTES', ""))
+                        # Limpiamos y convertimos los recortes
+                        obj.cuts = [float(x.strip()) for x in cuts_str.split(',') if x.strip()]
+                st.success("✅ Datos cargados correctamente.")
+                st.rerun() # Refresca la app para mostrar los nuevos números
+
+    with col_sync2:
+        if st.button("📤 Guardar en Sheets", help="Sube el stock actual a la planilla de Google"):
+            wks = conectar_google_sheets()
+            if wks:
+                # Preparamos la cabecera y las filas
+                rows = [["TIPO_CHAPA", "CHAPAS_COMPLETAS", "RECORTES"]]
+                for name, obj in st.session_state.inventory.items():
+                    cuts_str = ",".join(map(str, obj.cuts))
+                    rows.append([name, obj.full_sheets_count, cuts_str])
+                
+                # Limpiamos la hoja y subimos todo de nuevo
+                wks.clear()
+                wks.update('A1', rows)
+                st.success("💾 Datos guardados en la nube.")
