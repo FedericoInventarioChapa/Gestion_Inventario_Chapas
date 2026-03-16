@@ -1,3 +1,13 @@
+import json # Agregamos esto arriba de todo
+
+def conectar_google_sheets():
+    # Leemos el JSON como un texto largo y lo convertimos a diccionario
+    info_json = st.secrets["gcp_service_account"]["json_data"]
+    credentials = json.loads(info_json)
+    
+    gc = gspread.service_account_from_dict(credentials)
+    # Asegúrate de que el nombre coincida con tu archivo de Google Sheets
+    return gc.open('Inventario Chapas').sheet1
 import streamlit as st
 import gspread
 import pandas as pd
