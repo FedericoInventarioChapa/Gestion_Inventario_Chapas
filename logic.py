@@ -15,10 +15,6 @@ class SheetInventory:
         return False
 
     def take_material(self, length_needed, num_cuts=1):
-        """
-        Procesa los cortes asegurando que nunca quede un sobrante < 1.5m.
-        Si un recorte dejaría un resto pequeño, el sistema lo salta y busca una chapa nueva.
-        """
         if length_needed >= 12.0:
             return False, [{"error": "Corte bloqueado: El largo debe ser menor a 12m."}]
         
@@ -35,9 +31,7 @@ class SheetInventory:
                 'success': False
             }
             
-            # FILTRO INTELIGENTE: 
-            # 1. Que el recorte alcance (c >= length_needed)
-            # 2. Que lo que sobre sea 0 (exacto) O sea >= 1.5m
+            # Filtro inteligente: buscamos recortes que dejen 0 o >= 1.5m
             suitable_cuts = [
                 c for c in self.cuts 
                 if c >= length_needed and (round(c - length_needed, 2) == 0 or round(c - length_needed, 2) >= self.min_cut_length_to_save)
@@ -48,19 +42,18 @@ class SheetInventory:
                 self.cuts.remove(selected_cut)
                 remnant = round(selected_cut - length_needed, 2)
                 
-                if remnant > 0: 
+                if remnant > 0:
                     self.cuts.append(remnant)
                 
                 record.update({'source': 'Recorte', 'remnant': remnant, 'success': True})
                 successful_cuts += 1
                 
             elif self.full_sheets_count > 0:
-                # Validamos la chapa de 13m
                 remnant = round(self.full_sheet_length - length_needed, 2)
                 
-                # Si de una chapa de 13m sobra menos de 1.5m, bloqueamos para evitar desperdicio
                 if remnant < self.min_cut_length_to_save:
-                     return False, [{"error": f"El corte de {length_needed}m dejaría un sobrante de {remnant}m (mínimo 1.5m)."}]
+                    # En lugar de romper el bucle, devolvemos el error específico
+                    return False, [{"error": f"El corte de {length_needed}m dejaría un sobrante de {remnant}m (mínimo 1.5m)."}]
 
                 self.full_sheets_count -= 1
                 if remnant > 0:
@@ -69,7 +62,6 @@ class SheetInventory:
                 record.update({'source': 'Chapa Completa', 'remnant': remnant, 'success': True})
                 successful_cuts += 1
             else:
-                # Si no hay recortes válidos ni chapas completas
                 break 
             
             current_records.append(record)
@@ -77,14 +69,12 @@ class SheetInventory:
         return (successful_cuts == num_cuts), current_records
 
     def undo_cut(self, source, length_requested, remnant):
-        """
-        Revierte un movimiento. Si el sobrante se guardó, lo quita. 
-        Luego restaura la fuente original.
-        """
-        # Si el remanente es > 0, significa que se guardó en la lista 'cuts' (porque ya validamos que fuera >= 1.5)
         if remnant > 0 and remnant in self.cuts:
             self.cuts.remove(remnant)
         
         if source == 'Recorte':
-            # Restauramos la pieza original que se usó
-            original_piece = round(length_requested + remnant
+            original_piece = round(length_requested + remnant, 2)
+            self.cuts.append(original_piece)
+        elif source == 'Chapa Completa':
+            self.full_sheets_count += 1
+        return True
