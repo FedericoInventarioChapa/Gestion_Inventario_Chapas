@@ -88,17 +88,29 @@ opcion = st.sidebar.radio("Operaciones:", [
     "6. Sincronizar Google Sheets"
 ])
 
-# PASO 1: INVENTARIO
+# PASO 1: INVENTARIO con Semáforo
 if opcion == "1. Mostrar Inventario":
     st.header("📦 Stock en Depósito")
     for name, obj in st.session_state.inventory.items():
-        with st.expander(f"Ver {name}", expanded=True):
-            c1, c2 = st.columns(2)
-            c1.metric("Chapas (13m)", f"{obj.full_sheets_count} un.")
-            # Limpiamos visualmente la lista de recortes para que no haya errores de redondeo
-            clean_cuts = [round(c, 2) for c in obj.cuts]
-            c2.write(f"**Recortes Disponibles:** {clean_cuts if clean_cuts else 'Sin recortes'}")
+        # Definimos el color según la cantidad
+        if obj.full_sheets_count <= 2:
+            color = "inverse" # Rojo/Crítico
+            mensaje = "🚨 STOCK CRÍTICO: Reponer urgente"
+        elif obj.full_sheets_count <= 5:
+            color = "normal" 
+            mensaje = "⚠️ STOCK BAJO: Considerar compra"
+        else:
+            color = "off"
+            mensaje = "✅ Stock Saludable"
 
+        with st.expander(f"Ver {name}", expanded=True):
+            c1, c2, c3 = st.columns([1, 1, 2])
+            c1.metric("Chapas (13m)", f"{obj.full_sheets_count} un.", delta=mensaje if obj.full_sheets_count <= 5 else None, delta_color="normal")
+            
+            clean_cuts = [round(c, 2) for c in obj.cuts]
+            c2.metric("Total Recortes", f"{len(clean_cuts)} piezas")
+            c3.write(f"**Medidas disponibles:** {clean_cuts if clean_cuts else 'Sin recortes'}")
+            
 # PASO 2: AÑADIR STOCK
 elif opcion == "2. Añadir Stock":
     st.header("➕ Ingreso de Material")
