@@ -6,6 +6,19 @@ from logic import SheetInventory
 
 st.set_page_config(page_title="Gestión de Chapas", layout="wide")
 
+def obtener_contactos_sheets():
+    try:
+        doc = conectar_google_sheets()
+        if doc:
+            # Intentamos abrir la pestaña 'Contactos'
+            wks_contactos = doc.worksheet('Contactos')
+            datos = wks_contactos.get_all_records()
+            # Convertimos a un diccionario {Nombre: Telefono}
+            return {str(fila['NOMBRE']): str(fila['TELEFONO']) for fila in datos if fila['NOMBRE']}
+    except Exception as e:
+        st.error(f"No se pudo cargar la agenda: {e}")
+    return {"Sin Contactos": ""}
+
 # --- CONEXIÓN SEGURA ---
 def conectar_google_sheets():
     try:
@@ -100,6 +113,18 @@ elif opcion == "2. Añadir Stock":
 # PASO 3: TOMAR MATERIAL
 elif opcion == "3. Tomar Material":
     st.header("✂️ Registro de Corte para Producción")
+    
+    # --- CARGA DE AGENDA DINÁMICA ---
+    agenda = obtener_contactos_sheets()
+    
+    col_tel, col_info = st.columns(2)
+    with col_tel:
+        nombre_cortador = st.selectbox("📲 Seleccionar Cortador:", list(agenda.keys()))
+        tel_destino = agenda[nombre_cortador]
+    
+    with col_info:
+        st.info(f"Enviar a: {nombre_cortador} ({tel_destino})")
+
     st.warning("⚠️ Regla: Sobrantes menores a 1.50m serán bloqueados o descartados.")
     
     with st.form("corte_form"):
@@ -111,6 +136,8 @@ elif opcion == "3. Tomar Material":
         if st.form_submit_button("Procesar y Generar Orden"):
             if not cliente:
                 st.error("Por favor, ingresa el nombre del cliente.")
+            elif not tel_destino:
+                st.error("El contacto seleccionado no tiene un teléfono válido.")
             else:
                 exito, registros = st.session_state.inventory[tipo].take_material(largo, cant)
                 if exito:
@@ -124,15 +151,16 @@ elif opcion == "3. Tomar Material":
                     st.success(f"✅ Pedido registrado para {cliente}")
                     st.markdown("### 📝 Hoja de Corte (Producción)")
                     
-                    resumen_texto = f"*CLIENTE:* {cliente}\n*PRODUCTO:* {tipo}\n"
+                    # Formateamos el mensaje para WhatsApp
+                    resumen_texto = f"*ORDEN DE CORTE*\n"
+                    resumen_texto += f"*CLIENTE:* {cliente}\n"
+                    resumen_texto += f"*PRODUCTO:* {tipo}\n"
                     resumen_texto += "-"*20 + "\n"
 
                     for i, r in enumerate(registros):
                         origen = r['source']
-                        # Calculamos el largo original para el operario
                         largo_original = round(r['length_requested'] + r['remnant'], 2) if origen == 'Recorte' else 13.0
-                        
-                        detalle = f"PIEZA {i+1}: Corte de {largo}m\n👉 EXTRAER DE: {origen} (Medida: {largo_original}m)\n"
+                        detalle = f"PIEZA {i+1}: Corte de {largo}m\n👉 EXTRAER DE: {origen} ({largo_original}m)\n"
                         st.info(detalle)
                         resumen_texto += detalle + "\n"
                     
@@ -140,16 +168,14 @@ elif opcion == "3. Tomar Material":
 
                     # --- BOTÓN DE WHATSAPP ---
                     import urllib.parse
-                    # Puedes cambiar este número por el del cortador
-                    tel = "5491122334455" 
                     texto_url = urllib.parse.quote(resumen_texto)
-                    link_wa = f"https://wa.me/{tel}?text={texto_url}"
-                    st.link_button("📲 Enviar Orden al Cortador", link_wa)
+                    link_wa = f"https://wa.me/{tel_destino}?text={texto_url}"
+                    st.link_button(f"📲 Enviar Orden a {nombre_cortador}", link_wa)
                 else:
                     if registros and "error" in registros[0]:
                         st.error(registros[0]["error"])
                     else:
-                        st.error("Stock insuficiente para cumplir la regla de 1.5m.")
+                        st.error("Stock insuficiente.")
 # PASO 4: DESHACER
 elif opcion == "4. Deshacer Pedido":
     st.header("↩️ Deshacer Último Movimiento")
