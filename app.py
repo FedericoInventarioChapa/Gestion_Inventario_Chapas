@@ -259,22 +259,21 @@ elif opcion == "7. Buscador de Retazos":
     with c2:
         largo_b = st.number_input("Largo necesario (m)", min_value=0.5, step=0.1)
 
-    # Obtenemos los cortes y los filtramos
     lista_cortes = st.session_state.inventory[tipo_b].cuts
-    # Buscamos los que sirven (c >= largo_b) y que al cortar dejen algo >= 1.5 o nada
-    # Reutilizamos la lógica de tu filtro inteligente
     min_reserva = 1.5
+    
     candidatos = [
         c for c in lista_cortes 
         if c >= largo_b and (round(c - largo_b, 2) == 0 or round(c - largo_b, 2) >= min_reserva)
     ]
-    candidatos.sort() # Ordenamos de menor a mayor para gastar el más justo primero
+    candidatos.sort() 
 
     if candidatos:
         st.success(f"¡Encontramos {len(candidatos)} piezas que sirven!")
-        for rec en candidatos[:3]: # Mostramos los 3 mejores
+        for rec in candidatos[:3]: # <-- Corregido: 'in' en lugar de 'en'
             sobra = round(rec - largo_b, 2)
             st.warning(f"📏 **Pieza de {rec}m**: Si la cortás a {largo_b}m, te queda un sobrante de **{sobra}m**.")
-            st.button(f"Usar esta pieza de {rec}m", key=f"btn_{rec}", on_click=st.info, args=(f"Cargá este pedido manualmente en 'Tomar Material' usando el largo de {largo_b}m",))
+            # Un pequeño aviso informativo
+            st.caption(f"Si usás esta pieza, recordá cargar el pedido en 'Tomar Material' para descontarla.")
     else:
         st.error("No hay recortes que cumplan la regla de los 1.5m. Deberás usar una chapa de 13m.")
