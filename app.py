@@ -201,72 +201,65 @@ elif opcion == "5. Historial y Reporte":
     
     if st.session_state.history:
         import pandas as pd
+        # Convertimos a DataFrame
         df = pd.DataFrame(st.session_state.history)
         
-        # --- MÉTRICAS (Igual que antes) ---
+        # --- MÉTRICAS RÁPIDAS ---
         col1, col2, col3 = st.columns(3)
         total_metros = df[df['success'] == True]['length_requested'].sum()
         col1.metric("Metros Cortados", f"{total_metros:.2f} m")
         col2.metric("Total Pedidos", f"{len(df)}")
-        col3.metric("Chapa Estrella", df['sheet_type'].mode()[0])
+        # Sacamos la chapa más vendida de forma segura
+        chapa_estrella = df['sheet_type'].mode()[0] if not df.empty else "N/A"
+        col3.metric("Chapa Estrella", chapa_estrella)
 
         st.divider()
 
+        # --- PESTAÑAS ---
         tab1, tab2 = st.tabs(["📈 Gráficos", "🛠️ Gestionar Historial"])
 
-       with tab1:
+        with tab1:
             c1, c2 = st.columns(2)
-            
             with c1:
                 st.write("**Ventas por Tipo (m)**")
-                # Agrupamos y convertimos a DataFrame explícito para evitar el AttributeError
+                # Agrupamos y reseteamos index para que Streamlit no de error
                 chart_data = df.groupby('sheet_type')['length_requested'].sum().reset_index()
-                # Usamos st.bar_chart si pie_chart falla, o forzamos el formato:
-                st.dataframe(chart_data, hide_index=True) # Tabla rápida de auxilio
-                try:
-                    st.pie_chart(data=chart_data, themes=None, x="sheet_type", y="length_requested")
-                except:
-                    st.bar_chart(data=chart_data, x="sheet_type", y="length_requested")
+                st.bar_chart(data=chart_data, x="sheet_type", y="length_requested")
             
             with c2:
-                st.write("**Origen del Material (Cantidad)**")
+                st.write("**Origen del Material (Cant.)**")
                 uso_data = df['source'].value_counts().reset_index()
                 st.bar_chart(data=uso_data, x="source", y="count")
 
         with tab2:
             st.subheader("Eliminar o Corregir Pedidos")
-            st.write("⚠️ Al eliminar un pedido, el material se devolverá automáticamente al stock.")
+            st.write("⚠️ Al eliminar, el material vuelve al stock automáticamente.")
             
-            # Mostramos la tabla con un índice para poder elegir
             for i, row in df.iterrows():
-                with st.expander(f"Pedido #{i} - {row['cliente']} ({row['length_requested']}m de {row['sheet_type']})"):
+                # Creamos un título limpio para cada pedido
+                label = f"#{i} - {row['cliente']} ({row['length_requested']}m de {row['sheet_type']})"
+                with st.expander(label):
                     col_info, col_btn = st.columns([3, 1])
-                    col_info.write(f"**Origen:** {row['source']} | **Sobrante generado:** {row['remnant']}m")
-                    col_info.write(f"**Fecha:** {row['timestamp']}")
+                    col_info.write(f"**Origen:** {row['source']} | **Fecha:** {row['timestamp']}")
                     
-                    if col_btn.button("🗑️ Eliminar este pedido", key=f"del_{i}"):
-                        # 1. Devolvemos el stock físicamente
-                        tipo = row['sheet_type']
-                        st.session_state.inventory[tipo].undo_cut(
+                    if col_btn.button("🗑️ Borrar", key=f"del_{i}"):
+                        # Devolvemos stock
+                        st.session_state.inventory[row['sheet_type']].undo_cut(
                             row['source'], 
                             row['length_requested'], 
                             row['remnant']
                         )
-                        
-                        # 2. Lo borramos de la lista de Python
+                        # Borramos del historial
                         st.session_state.history.pop(i)
-                        
-                        # 3. Guardamos los cambios en Google Sheets (Stock y limpiar historial si fuera necesario)
                         guardar_stock_actual()
-                        
-                        st.success("✅ Pedido eliminado y stock restaurado.")
-                        st.rerun() # Recargamos la app para que desaparezca de la lista
+                        st.success("✅ Eliminado. Recargando...")
+                        st.rerun()
             
-            # Botón de descarga al final
+            # Botón de descarga al final del tab2
             csv = df.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 Exportar a Excel (CSV)", csv, "historial.csv", "text/csv")
+            st.download_button("📥 Exportar CSV", csv, "historial.csv", "text/csv")
     else:
-        st.info("No hay historial para mostrar.")
+        st.info("No hay historial disponible.")
         
 # PASO 6: SINCRONIZACIÓN MANUAL
 elif opcion == "6. Sincronizar Google Sheets":
