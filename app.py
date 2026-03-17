@@ -82,7 +82,9 @@ if opcion == "1. Mostrar Inventario":
         with st.expander(f"Ver {name}", expanded=True):
             c1, c2 = st.columns(2)
             c1.metric("Chapas (13m)", f"{obj.full_sheets_count} un.")
-            c2.write(f"**Recortes Disponibles:** {obj.cuts if obj.cuts else 'Sin recortes'}")
+            # Limpiamos visualmente la lista de recortes para que no haya errores de redondeo
+            clean_cuts = [round(c, 2) for c in obj.cuts]
+            c2.write(f"**Recortes Disponibles:** {clean_cuts if clean_cuts else 'Sin recortes'}")
 
 # PASO 2: AÑADIR STOCK
 elif opcion == "2. Añadir Stock":
@@ -92,18 +94,19 @@ elif opcion == "2. Añadir Stock":
         cantidad_add = st.number_input("Cantidad de chapas de 13m", min_value=1, step=1)
         if st.form_submit_button("Añadir al Inventario"):
             st.session_state.inventory[tipo_add].add_full_sheets(cantidad_add)
-            guardar_stock_actual() # Guarda automáticamente
+            guardar_stock_actual() 
             st.success(f"Se agregaron {cantidad_add} chapas a {tipo_add} y se guardó en la nube.")
 
 # PASO 3: TOMAR MATERIAL
 elif opcion == "3. Tomar Material":
     st.header("✂️ Registro de Corte para Producción")
-    st.warning("Reglas: No cortes ≥ 12m. Sobrantes < 1.50m se descartan.")
+    st.warning("⚠️ Regla: Sobrantes menores a 1.50m serán bloqueados o descartados.")
     
     with st.form("corte_form"):
         cliente = st.text_input("Nombre del Cliente / Orden #", placeholder="Ej: Juan Pérez")
         tipo = st.selectbox("Chapa", list(st.session_state.inventory.keys()))
-        largo = st.number_input("Largo (m)", min_value=0.5, max_value=11.9, step=0.1)
+        # AJUSTE: max_value 11.5 para asegurar que de una de 13m siempre sobre al menos 1.5m
+        largo = st.number_input("Largo del corte (m)", min_value=0.5, max_value=11.5, step=0.1)
         cant = st.number_input("Cantidad de piezas", min_value=1, step=1)
         
         if st.form_submit_button("Procesar y Generar Orden"):
@@ -116,8 +119,6 @@ elif opcion == "3. Tomar Material":
                         r['cliente'] = cliente
                     
                     st.session_state.history.extend(registros)
-                    
-                    # GUARDADO AUTOMÁTICO DOBLE
                     registrar_en_historial_sheets(registros)
                     guardar_stock_actual()
 
@@ -125,12 +126,16 @@ elif opcion == "3. Tomar Material":
                     st.markdown("### 📝 Hoja de Corte (Producción)")
                     resumen_texto = f"CLIENTE: {cliente}\nPRODUCTO: {tipo}\n"
                     for i, r in enumerate(registros):
-                        info_linea = f"- Pieza {i+1}: {largo}m (Extraer de: {r['source']})"
+                        info_linea = f"- Pieza {i+1}: {largo}m (Origen: {r['source']}, Sobrante: {r['remnant']}m)"
                         st.info(info_linea)
                         resumen_texto += info_linea + "\n"
                     st.code(resumen_texto, language="text")
                 else:
-                    st.error("Stock insuficiente.")
+                    # Si falla, mostramos el error que devuelve logic.py (como el de sobrante < 1.5)
+                    if registros and "error" in registros[0]:
+                        st.error(registros[0]["error"])
+                    else:
+                        st.error("Stock insuficiente: No hay recortes que cumplan la regla de 1.5m ni chapas de 13m.")
 
 # PASO 4: DESHACER
 elif opcion == "4. Deshacer Pedido":
@@ -141,8 +146,9 @@ elif opcion == "4. Deshacer Pedido":
         if st.button("Confirmar y Restaurar Stock"):
             st.session_state.inventory[ultimo['sheet_type']].undo_cut(ultimo['source'], ultimo['length_requested'], ultimo['remnant'])
             st.session_state.history.pop()
-            guardar_stock_actual() # Reflejamos el deshacer en la nube
-            st.success("Operación deshecha y stock restaurado en la nube.")
+            guardar_stock_actual() 
+            st.success("Operación deshecha y stock restaurado.")
+            st.rerun()
     else:
         st.info("No hay nada para deshacer.")
 
@@ -179,4 +185,3 @@ elif opcion == "6. Sincronizar Google Sheets":
         if st.button("📤 Guardar en Sheets"):
             guardar_stock_actual()
             st.success("💾 Stock guardado.")
-          
