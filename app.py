@@ -85,31 +85,42 @@ opcion = st.sidebar.radio("Operaciones:", [
     "4. Deshacer Pedido",
     "5. Historial y Reporte",
     "6. Sincronizar Google Sheets",
-    "7. Buscador de Retazos" # <-- Nueva opción
+    "7. Buscador de Retazos"  # <-- Nueva opción añadida
 ])
 
-# PASO 1: INVENTARIO con Semáforo
+# PASO 1: INVENTARIO con Alertas Visuales
 if opcion == "1. Mostrar Inventario":
     st.header("📦 Stock en Depósito")
+    
     for name, obj in st.session_state.inventory.items():
-        # Definimos el color según la cantidad
-        if obj.full_sheets_count <= 2:
-            color = "inverse" # Rojo/Crítico
-            mensaje = "🚨 STOCK CRÍTICO: Reponer urgente"
-        elif obj.full_sheets_count <= 5:
-            color = "normal" 
-            mensaje = "⚠️ STOCK BAJO: Considerar compra"
+        # Lógica del semáforo
+        cantidad = obj.full_sheets_count
+        if cantidad <= 2:
+            estado = "🚨 CRÍTICO"
+            color_delta = "inverse"
+        elif cantidad <= 5:
+            estado = "⚠️ BAJO"
+            color_delta = "normal"
         else:
-            color = "off"
-            mensaje = "✅ Stock Saludable"
+            estado = "✅ OK"
+            color_delta = "off"
 
         with st.expander(f"Ver {name}", expanded=True):
-            c1, c2, c3 = st.columns([1, 1, 2])
-            c1.metric("Chapas (13m)", f"{obj.full_sheets_count} un.", delta=mensaje if obj.full_sheets_count <= 5 else None, delta_color="normal")
+            col1, col2, col3 = st.columns([1, 1, 2])
             
+            # Métrica principal con indicador de estado
+            col1.metric("Chapas (13m)", f"{cantidad} un.", delta=estado, delta_color=color_delta)
+            
+            # Resumen de recortes
             clean_cuts = [round(c, 2) for c in obj.cuts]
-            c2.metric("Total Recortes", f"{len(clean_cuts)} piezas")
-            c3.write(f"**Medidas disponibles:** {clean_cuts if clean_cuts else 'Sin recortes'}")
+            col2.metric("Recortes", f"{len(clean_cuts)} pzs")
+            
+            # Lista detallada
+            col3.write(f"**Medidas disponibles (m):**")
+            if clean_cuts:
+                st.info(", ".join(map(str, sorted(clean_cuts, reverse=True))))
+            else:
+                st.caption("No hay recortes disponibles.")
             
 # PASO 2: AÑADIR STOCK
 elif opcion == "2. Añadir Stock":
@@ -239,25 +250,31 @@ elif opcion == "6. Sincronizar Google Sheets":
 
 # PASO 7: BUSCADOR DE RETAZOS
 elif opcion == "7. Buscador de Retazos":
-    st.header("🔍 Buscador Rápido de Recortes")
-    st.write("Usá esta herramienta para encontrar piezas sueltas que le sirvan a un cliente sin tocar las chapas de 13m.")
+    st.header("🔍 Buscador de Piezas Sueltas")
+    st.info("Usá esta herramienta para aprovechar sobrantes antes de tocar una chapa nueva.")
     
-    col1, col2 = st.columns(2)
-    with col1:
-        tipo_busqueda = st.selectbox("Tipo de chapa", list(st.session_state.inventory.keys()))
-    with col2:
-        medida_buscada = st.number_input("¿Qué largo busca el cliente? (m)", min_value=0.5, step=0.1)
-    
-    recortes_vivos = st.session_state.inventory[tipo_busqueda].cuts
-    # Filtramos los que sirven
-    sirven = [c for c in recortes_vivos if c >= medida_buscada]
-    sirven.sort() # Los ordenamos de menor a mayor
-    
-    if sirven:
-        st.success(f"Encontramos {len(sirven)} recortes que sirven.")
-        # Mostramos los mejores 3 para no desperdiciar
-        for r in sirven[:3]:
-            sobrante_final = round(r - medida_buscada, 2)
-            st.info(f"📏 Recorte de **{r}m** -> Si lo cortás, te sobran **{sobrante_final}m**.")
+    c1, c2 = st.columns(2)
+    with c1:
+        tipo_b = st.selectbox("¿Qué chapa busca el cliente?", list(st.session_state.inventory.keys()))
+    with c2:
+        largo_b = st.number_input("Largo necesario (m)", min_value=0.5, step=0.1)
+
+    # Obtenemos los cortes y los filtramos
+    lista_cortes = st.session_state.inventory[tipo_b].cuts
+    # Buscamos los que sirven (c >= largo_b) y que al cortar dejen algo >= 1.5 o nada
+    # Reutilizamos la lógica de tu filtro inteligente
+    min_reserva = 1.5
+    candidatos = [
+        c for c in lista_cortes 
+        if c >= largo_b and (round(c - largo_b, 2) == 0 or round(c - largo_b, 2) >= min_reserva)
+    ]
+    candidatos.sort() # Ordenamos de menor a mayor para gastar el más justo primero
+
+    if candidatos:
+        st.success(f"¡Encontramos {len(candidatos)} piezas que sirven!")
+        for rec en candidatos[:3]: # Mostramos los 3 mejores
+            sobra = round(rec - largo_b, 2)
+            st.warning(f"📏 **Pieza de {rec}m**: Si la cortás a {largo_b}m, te queda un sobrante de **{sobra}m**.")
+            st.button(f"Usar esta pieza de {rec}m", key=f"btn_{rec}", on_click=st.info, args=(f"Cargá este pedido manualmente en 'Tomar Material' usando el largo de {largo_b}m",))
     else:
-        st.error("No hay ningún recorte de ese largo. Vas a tener que usar una Chapa Completa.")
+        st.error("No hay recortes que cumplan la regla de los 1.5m. Deberás usar una chapa de 13m.")
