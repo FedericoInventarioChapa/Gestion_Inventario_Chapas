@@ -78,14 +78,14 @@ if 'inventory' not in st.session_state:
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# --- MENÚ LATERAL ---
 opcion = st.sidebar.radio("Operaciones:", [
     "1. Mostrar Inventario", 
     "2. Añadir Stock", 
     "3. Tomar Material",
     "4. Deshacer Pedido",
     "5. Historial y Reporte",
-    "6. Sincronizar Google Sheets"
+    "6. Sincronizar Google Sheets",
+    "7. Buscador de Retazos" # <-- Nueva opción
 ])
 
 # PASO 1: INVENTARIO con Semáforo
@@ -236,3 +236,28 @@ elif opcion == "6. Sincronizar Google Sheets":
         if st.button("📤 Guardar en Sheets"):
             guardar_stock_actual()
             st.success("💾 Stock guardado.")
+
+# PASO 7: BUSCADOR DE RETAZOS
+elif opcion == "7. Buscador de Retazos":
+    st.header("🔍 Buscador Rápido de Recortes")
+    st.write("Usá esta herramienta para encontrar piezas sueltas que le sirvan a un cliente sin tocar las chapas de 13m.")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        tipo_busqueda = st.selectbox("Tipo de chapa", list(st.session_state.inventory.keys()))
+    with col2:
+        medida_buscada = st.number_input("¿Qué largo busca el cliente? (m)", min_value=0.5, step=0.1)
+    
+    recortes_vivos = st.session_state.inventory[tipo_busqueda].cuts
+    # Filtramos los que sirven
+    sirven = [c for c in recortes_vivos if c >= medida_buscada]
+    sirven.sort() # Los ordenamos de menor a mayor
+    
+    if sirven:
+        st.success(f"Encontramos {len(sirven)} recortes que sirven.")
+        # Mostramos los mejores 3 para no desperdiciar
+        for r in sirven[:3]:
+            sobrante_final = round(r - medida_buscada, 2)
+            st.info(f"📏 Recorte de **{r}m** -> Si lo cortás, te sobran **{sobrante_final}m**.")
+    else:
+        st.error("No hay ningún recorte de ese largo. Vas a tener que usar una Chapa Completa.")
