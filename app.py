@@ -214,16 +214,60 @@ elif opcion == "4. Deshacer Pedido":
     else:
         st.info("No hay nada para deshacer.")
 
-# PASO 5: HISTORIAL
+# PASO 5: HISTORIAL Y REPORTES VISUALES
 elif opcion == "5. Historial y Reporte":
-    st.header("📜 Historial de Pedidos")
+    st.header("📊 Análisis de Ventas e Historial")
+    
     if st.session_state.history:
+        import pandas as pd
+        
+        # Convertimos el historial a un DataFrame de Pandas para manejar datos fácil
         df = pd.DataFrame(st.session_state.history)
-        columnas = ['timestamp', 'cliente', 'sheet_type', 'length_requested', 'source', 'remnant']
-        df = df[[c for c in columnas if c in df.columns]]
-        st.dataframe(df, use_container_width=True)
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Descargar CSV", csv, "produccion.csv", "text/csv")
+        
+        # --- FILA DE MÉTRICAS RÁPIDAS ---
+        col1, col2, col3 = st.columns(3)
+        total_metros = df[df['success'] == True]['length_requested'].sum()
+        total_cortes = len(df)
+        chapa_estrella = df['sheet_type'].mode()[0] if not df.empty else "N/A"
+        
+        col1.metric("Metros Cortados", f"{total_metros:.2f} m")
+        col2.metric("Total de Piezas", f"{total_cortes} pzs")
+        col3.metric("Chapa más vendida", chapa_estrella)
+
+        st.divider()
+
+        # --- GRÁFICOS ---
+        tab1, tab2 = st.tabs(["📈 Gráficos de Rendimiento", "📋 Tabla de Datos"])
+        
+        with tab1:
+            c1, c2 = st.columns(2)
+            
+            with c1:
+                st.subheader("Ventas por Tipo de Chapa")
+                # Gráfico de torta simple de Streamlit
+                chart_data = df.groupby('sheet_type')['length_requested'].sum()
+                st.pie_chart(chart_data)
+            
+            with c2:
+                st.subheader("Uso de Material")
+                # Comparamos si sale de Chapa Completa o Recorte
+                uso_data = df['source'].value_counts()
+                st.bar_chart(uso_data)
+
+        with tab2:
+            st.subheader("Registro Detallado")
+            st.dataframe(df.sort_index(ascending=False), use_container_width=True)
+            
+            # Botón para descargar CSV (por si lo quieres abrir en Excel)
+            csv = df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Descargar Historial (Excel/CSV)",
+                data=csv,
+                file_name='historial_inventario.csv',
+                mime='text/csv',
+            )
+    else:
+        st.info("Aún no hay registros en el historial. ¡Empezá a cortar para ver las estadísticas!")
 
 # PASO 6: SINCRONIZACIÓN MANUAL
 elif opcion == "6. Sincronizar Google Sheets":
