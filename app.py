@@ -133,21 +133,9 @@ elif opcion == "2. Añadir Stock":
             guardar_stock_actual() 
             st.success(f"Se agregaron {cantidad_add} chapas a {tipo_add} y se guardó en la nube.")
 
-# PASO 3: TOMAR MATERIAL
+# PASO 3: TOMAR MATERIAL (Versión Limpia)
 elif opcion == "3. Tomar Material":
-    st.header("✂️ Registro de Corte para Producción")
-    
-    # --- CARGA DE AGENDA DINÁMICA ---
-    agenda = obtener_contactos_sheets()
-    
-    col_tel, col_info = st.columns(2)
-    with col_tel:
-        nombre_cortador = st.selectbox("📲 Seleccionar Cortador:", list(agenda.keys()))
-        tel_destino = agenda[nombre_cortador]
-    
-    with col_info:
-        st.info(f"Enviar a: {nombre_cortador} ({tel_destino})")
-
+    st.header("✂️ Registro de Corte")
     st.warning("⚠️ Regla: Sobrantes menores a 1.50m serán bloqueados o descartados.")
     
     with st.form("corte_form"):
@@ -159,8 +147,6 @@ elif opcion == "3. Tomar Material":
         if st.form_submit_button("Procesar y Generar Orden"):
             if not cliente:
                 st.error("Por favor, ingresa el nombre del cliente.")
-            elif not tel_destino:
-                st.error("El contacto seleccionado no tiene un teléfono válido.")
             else:
                 exito, registros = st.session_state.inventory[tipo].take_material(largo, cant)
                 if exito:
@@ -172,33 +158,28 @@ elif opcion == "3. Tomar Material":
                     guardar_stock_actual()
 
                     st.success(f"✅ Pedido registrado para {cliente}")
-                    st.markdown("### 📝 Hoja de Corte (Producción)")
                     
-                    # Formateamos el mensaje para WhatsApp
-                    resumen_texto = f"*ORDEN DE CORTE*\n"
-                    resumen_texto += f"*CLIENTE:* {cliente}\n"
-                    resumen_texto += f"*PRODUCTO:* {tipo}\n"
-                    resumen_texto += "-"*20 + "\n"
+                    # --- HOJA DE CORTE VISUAL EN PANTALLA ---
+                    st.markdown("### 📝 Instrucciones para el Operario")
+                    resumen_texto = f"ORDEN: {cliente} | CHAPA: {tipo}\n"
+                    resumen_texto += "="*35 + "\n"
 
                     for i, r in enumerate(registros):
                         origen = r['source']
+                        # Calculamos el largo de donde tiene que sacar la pieza
                         largo_original = round(r['length_requested'] + r['remnant'], 2) if origen == 'Recorte' else 13.0
-                        detalle = f"PIEZA {i+1}: Corte de {largo}m\n👉 EXTRAER DE: {origen} ({largo_original}m)\n"
+                        
+                        detalle = f"PIEZA {i+1}: Cortar a {largo}m\n📍 BUSCAR EN: {origen} de {largo_original}m\n"
                         st.info(detalle)
                         resumen_texto += detalle + "\n"
                     
+                    # El cuadro de texto para copiar rápido si hiciera falta
                     st.code(resumen_texto, language="text")
-
-                    # --- BOTÓN DE WHATSAPP ---
-                    import urllib.parse
-                    texto_url = urllib.parse.quote(resumen_texto)
-                    link_wa = f"https://wa.me/{tel_destino}?text={texto_url}"
-                    st.link_button(f"📲 Enviar Orden a {nombre_cortador}", link_wa)
                 else:
                     if registros and "error" in registros[0]:
                         st.error(registros[0]["error"])
                     else:
-                        st.error("Stock insuficiente.")
+                        st.error("No hay stock suficiente que cumpla la regla de los 1.50m.")
 # PASO 4: DESHACER
 elif opcion == "4. Deshacer Pedido":
     st.header("↩️ Deshacer Último Movimiento")
