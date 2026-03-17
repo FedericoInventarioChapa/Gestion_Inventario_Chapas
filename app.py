@@ -124,11 +124,24 @@ elif opcion == "3. Tomar Material":
 
                     st.success(f"✅ Pedido registrado para {cliente}")
                     st.markdown("### 📝 Hoja de Corte (Producción)")
+                    
                     resumen_texto = f"CLIENTE: {cliente}\nPRODUCTO: {tipo}\n"
+                    resumen_texto += f"FECHA: {registros[0]['timestamp']}\n"
+                    resumen_texto += "-"*30 + "\n"
+
                     for i, r in enumerate(registros):
-                        info_linea = f"- Pieza {i+1}: {largo}m (Origen: {r['source']}, Sobrante: {r['remnant']}m)"
-                        st.info(info_linea)
-                        resumen_texto += info_linea + "\n"
+                        # Mejoramos la información para el operario
+                        origen = r['source']
+                        # Si es recorte, le decimos de qué medida buscarlo
+                        # Para esto, el origen debería decir algo como "Recorte de X.X m"
+                        # Pero como r['source'] solo dice "Recorte", calculamos el origen:
+                        largo_original = round(r['length_requested'] + r['remnant'], 2) if origen == 'Recorte' else 13.0
+                        
+                        detalles = f"PIEZA {i+1}: Corte de {largo}m\n   👉 EXTRAER DE: {origen} (Medida original: {largo_original}m)\n"
+                        
+                        st.info(detalles)
+                        resumen_texto += detalles + "\n"
+                    
                     st.code(resumen_texto, language="text")
                 else:
                     # Si falla, mostramos el error que devuelve logic.py (como el de sobrante < 1.5)
