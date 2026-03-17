@@ -214,14 +214,24 @@ elif opcion == "5. Historial y Reporte":
 
         tab1, tab2 = st.tabs(["📈 Gráficos", "🛠️ Gestionar Historial"])
 
-        with tab1:
+       with tab1:
             c1, c2 = st.columns(2)
+            
             with c1:
-                st.write("**Ventas por Tipo**")
-                st.pie_chart(df.groupby('sheet_type')['length_requested'].sum())
+                st.write("**Ventas por Tipo (m)**")
+                # Agrupamos y convertimos a DataFrame explícito para evitar el AttributeError
+                chart_data = df.groupby('sheet_type')['length_requested'].sum().reset_index()
+                # Usamos st.bar_chart si pie_chart falla, o forzamos el formato:
+                st.dataframe(chart_data, hide_index=True) # Tabla rápida de auxilio
+                try:
+                    st.pie_chart(data=chart_data, themes=None, x="sheet_type", y="length_requested")
+                except:
+                    st.bar_chart(data=chart_data, x="sheet_type", y="length_requested")
+            
             with c2:
-                st.write("**Origen del Material**")
-                st.bar_chart(df['source'].value_counts())
+                st.write("**Origen del Material (Cantidad)**")
+                uso_data = df['source'].value_counts().reset_index()
+                st.bar_chart(data=uso_data, x="source", y="count")
 
         with tab2:
             st.subheader("Eliminar o Corregir Pedidos")
