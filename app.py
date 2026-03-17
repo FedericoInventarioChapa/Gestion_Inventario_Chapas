@@ -150,6 +150,20 @@ elif opcion == "3. Tomar Material":
                     else:
                         st.error("Stock insuficiente: No hay recortes que cumplan la regla de 1.5m ni chapas de 13m.")
 
+# 1. Definimos el número del cortador (ejemplo: +549...)
+# Podrías poner un st.selectbox para elegir a qué cortador enviarlo
+telefono_cortador = "5491122334455" 
+
+# 2. Formateamos el texto para URL (cambia espacios por %20, etc.)
+import urllib.parse
+mensaje_url = urllib.parse.quote(resumen_texto)
+
+# 3. Creamos el link de WhatsApp
+link_wa = f"https://wa.me/{telefono_cortador}?text={mensaje_url}"
+
+# 4. Botón visual
+st.link_button("📲 Enviar Orden por WhatsApp", link_wa)
+
 # PASO 4: DESHACER
 elif opcion == "4. Deshacer Pedido":
     st.header("↩️ Deshacer Último Movimiento")
