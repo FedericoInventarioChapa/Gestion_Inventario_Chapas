@@ -214,61 +214,69 @@ elif opcion == "4. Deshacer Pedido":
     else:
         st.info("No hay nada para deshacer.")
 
-# PASO 5: HISTORIAL Y REPORTES VISUALES
+# PASO 5: HISTORIAL, REPORTES Y ELIMINACIÓN
 elif opcion == "5. Historial y Reporte":
-    st.header("📊 Análisis de Ventas e Historial")
+    st.header("📊 Análisis y Gestión de Registros")
     
     if st.session_state.history:
         import pandas as pd
-        
-        # Convertimos el historial a un DataFrame de Pandas para manejar datos fácil
         df = pd.DataFrame(st.session_state.history)
         
-        # --- FILA DE MÉTRICAS RÁPIDAS ---
+        # --- MÉTRICAS (Igual que antes) ---
         col1, col2, col3 = st.columns(3)
         total_metros = df[df['success'] == True]['length_requested'].sum()
-        total_cortes = len(df)
-        chapa_estrella = df['sheet_type'].mode()[0] if not df.empty else "N/A"
-        
         col1.metric("Metros Cortados", f"{total_metros:.2f} m")
-        col2.metric("Total de Piezas", f"{total_cortes} pzs")
-        col3.metric("Chapa más vendida", chapa_estrella)
+        col2.metric("Total Pedidos", f"{len(df)}")
+        col3.metric("Chapa Estrella", df['sheet_type'].mode()[0])
 
         st.divider()
 
-        # --- GRÁFICOS ---
-        tab1, tab2 = st.tabs(["📈 Gráficos de Rendimiento", "📋 Tabla de Datos"])
-        
+        tab1, tab2 = st.tabs(["📈 Gráficos", "🛠️ Gestionar Historial"])
+
         with tab1:
             c1, c2 = st.columns(2)
-            
             with c1:
-                st.subheader("Ventas por Tipo de Chapa")
-                # Gráfico de torta simple de Streamlit
-                chart_data = df.groupby('sheet_type')['length_requested'].sum()
-                st.pie_chart(chart_data)
-            
+                st.write("**Ventas por Tipo**")
+                st.pie_chart(df.groupby('sheet_type')['length_requested'].sum())
             with c2:
-                st.subheader("Uso de Material")
-                # Comparamos si sale de Chapa Completa o Recorte
-                uso_data = df['source'].value_counts()
-                st.bar_chart(uso_data)
+                st.write("**Origen del Material**")
+                st.bar_chart(df['source'].value_counts())
 
         with tab2:
-            st.subheader("Registro Detallado")
-            st.dataframe(df.sort_index(ascending=False), use_container_width=True)
+            st.subheader("Eliminar o Corregir Pedidos")
+            st.write("⚠️ Al eliminar un pedido, el material se devolverá automáticamente al stock.")
             
-            # Botón para descargar CSV (por si lo quieres abrir en Excel)
+            # Mostramos la tabla con un índice para poder elegir
+            for i, row in df.iterrows():
+                with st.expander(f"Pedido #{i} - {row['cliente']} ({row['length_requested']}m de {row['sheet_type']})"):
+                    col_info, col_btn = st.columns([3, 1])
+                    col_info.write(f"**Origen:** {row['source']} | **Sobrante generado:** {row['remnant']}m")
+                    col_info.write(f"**Fecha:** {row['timestamp']}")
+                    
+                    if col_btn.button("🗑️ Eliminar este pedido", key=f"del_{i}"):
+                        # 1. Devolvemos el stock físicamente
+                        tipo = row['sheet_type']
+                        st.session_state.inventory[tipo].undo_cut(
+                            row['source'], 
+                            row['length_requested'], 
+                            row['remnant']
+                        )
+                        
+                        # 2. Lo borramos de la lista de Python
+                        st.session_state.history.pop(i)
+                        
+                        # 3. Guardamos los cambios en Google Sheets (Stock y limpiar historial si fuera necesario)
+                        guardar_stock_actual()
+                        
+                        st.success("✅ Pedido eliminado y stock restaurado.")
+                        st.rerun() # Recargamos la app para que desaparezca de la lista
+            
+            # Botón de descarga al final
             csv = df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="📥 Descargar Historial (Excel/CSV)",
-                data=csv,
-                file_name='historial_inventario.csv',
-                mime='text/csv',
-            )
+            st.download_button("📥 Exportar a Excel (CSV)", csv, "historial.csv", "text/csv")
     else:
-        st.info("Aún no hay registros en el historial. ¡Empezá a cortar para ver las estadísticas!")
-
+        st.info("No hay historial para mostrar.")
+        
 # PASO 6: SINCRONIZACIÓN MANUAL
 elif opcion == "6. Sincronizar Google Sheets":
     st.header("🔄 Sincronización Manual")
